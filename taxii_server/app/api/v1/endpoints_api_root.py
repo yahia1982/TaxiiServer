@@ -5,7 +5,7 @@ from app.crud import crud_taxii
 from app.schemas import taxii_schemas
 from app.core.database import get_db
 from app.models.taxii_models import ApiRoot as ApiRootModel
-from app.models.user_models import User as UserModel
+from bfore_auth import types as bfore_types
 from app.auth.dependencies import get_current_active_user
 
 router = APIRouter()
@@ -26,7 +26,7 @@ async def get_api_root_info(api_root_path: str, db: Session = Depends(get_db)):
     )
 
 @router.get("/{api_root_path}/collections/", response_model=taxii_schemas.Collections, summary="List Collections in an API Root", tags=["Collections"])
-async def list_collections_in_api_root(api_root_path: str, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_active_user)):
+async def list_collections_in_api_root(api_root_path: str, db: Session = Depends(get_db), current_user: bfore_types.User = Depends(get_current_user)):
     db_api_root = get_api_root_or_404(db, api_root_path)
     db_collections = crud_taxii.collection["get_for_api_root"](db, api_root_id=db_api_root.id)
     collections_resp = []

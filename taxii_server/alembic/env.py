@@ -18,12 +18,17 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+# target_metadata = None # Original line commented out, will be set below
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+# Ensure our models are imported and Base.metadata is set for autogenerate
+from app.core.database import Base
+from app.models import * # This will import what's in app/models/__init__.py
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
@@ -76,9 +81,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-\n# Add your model's MetaData object here for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-from app.core.database import Base
-target_metadata = Base.metadata
-from app.models import *

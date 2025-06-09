@@ -1,40 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from datetime import timedelta, timezone
-from app.crud import user as crud_user_module
-from app.schemas.auth_schemas import Token
-from app.schemas.user_schemas import User as UserSchema
-from app.core.database import get_db
-from app.auth.jwt import create_access_token
-from app.core.config import settings
-from app.auth.dependencies import get_current_active_user
-from app.models.user_models import User as UserModel
+from fastapi import APIRouter, Depends, HTTPException, status # Keep these
+from sqlalchemy.orm import Session # Might not be needed if not hitting DB
+
+# Assuming bfore_auth handles token validation and user object creation
+from bfore_auth import get_current_user, types as bfore_types # Stubbing this import
 
 router = APIRouter()
 
-@router.post("/login", response_model=Token)
-async def login_for_access_token(
-    db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
-):
-    user = crud_user_module.user["authenticate"](db, username=form_data.username, password=form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+# Login endpoint is removed as auth is external
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "user_id": str(user.id), "roles": [user.role.name if user.role else ""]},
-        expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@router.get("/users/me", response_model=UserSchema)
-async def read_users_me(current_user: UserModel = Depends(get_current_active_user)):
+# We need a Pydantic schema that matches bfore_types.User for response_model
+# For now, let's assume bfore_types.User is Pydantic-compatible or we create one.
+# If bfore_types.User is not a Pydantic model, this endpoint needs adjustment.
+# As a placeholder, response_model is removed. Adjust if bfore_types.User is Pydantic.
+@router.get("/users/me") # Removed response_model for now
+async def read_users_me(current_user: bfore_types.User = Depends(get_current_user)):
     return current_user
