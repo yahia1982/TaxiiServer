@@ -9,7 +9,7 @@ This project implements a TAXII 2.1 compliant server using FastAPI, SQLAlchemy, 
 - Authentication integrated with an external system via the `bfore_auth` library (stubs used in development).
 - Role-based access control concepts: uses `is_admin` and `scopes` from the user object provided by `bfore_auth`.
 - Special `lite-feed` scope: Users with this scope only receive data added to a collection more than 14 days ago.
-- Data ingestion script provided to migrate data from a MySQL `domainStateless` table.
+- Data ingestion script provided to migrate data from a MySQL `domainStateless` table. This script generates a STIX pattern including a `domain-name`, an `indicator`, and a `relationship` object for each source domain.
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ This project implements a TAXII 2.1 compliant server using FastAPI, SQLAlchemy, 
 1.  **Clone the repository:**
     ```bash
     git clone <repository_url>
-    cd taxii_server
+    cd taxii_server  # Assuming the project root is taxii_server
     ```
 
 2.  **Create and activate a Python virtual environment:**
@@ -46,34 +46,20 @@ This project implements a TAXII 2.1 compliant server using FastAPI, SQLAlchemy, 
     # PostgreSQL connection URL
     DATABASE_URL=postgresql://your_pg_user:your_pg_password@your_pg_host:5432/taxii_db
 
-    # JWT Settings (if bfore_auth doesn't fully manage token creation/validation, or for other app parts)
-    # SECRET_KEY=a_very_secret_key_for_jwt_if_needed_locally
-    # ALGORITHM=HS256
-    # ACCESS_TOKEN_EXPIRE_MINUTES=30
-
     # For Data Ingestion Script (MySQL connection)
     MYSQL_USER=your_mysql_user
     MYSQL_PASSWORD=your_mysql_password
     MYSQL_HOST=your_mysql_host
     MYSQL_DATABASE=your_mysql_db_name
     MYSQL_PORT=3306
-
-    # For initial superuser creation (if using the example init_db_command in main.py)
-    # FIRST_SUPERUSER_USERNAME=admin
-    # FIRST_SUPERUSER_PASSWORD=adminpassword
-    # FIRST_SUPERUSER_EMAIL=admin@example.com
     ```
     **Note:** The application uses `pydantic-settings` to load these from the `.env` file.
 
 5.  **Run Database Migrations:**
-    Ensure your `alembic.ini` correctly points to your `DATABASE_URL` (it should pick up from the environment if configured).
+    Ensure your `alembic.ini` correctly points to your `DATABASE_URL`.
     ```bash
     alembic upgrade head
     ```
-    This will create all necessary tables in your PostgreSQL database.
-
-6.  **(Optional) Initial Data Setup:**
-    The application contains commented-out code in `app/main.py` (`init_db_command`) which can be enabled to create a default API Root and an initial admin user (if you are not managing these externally). You would typically run this once or adapt it into a separate CLI command.
 
 ## Running the Server
 
@@ -81,39 +67,49 @@ For development, run the Uvicorn server:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
-The server will be available at `http://localhost:8000`.
 
-## Running the Data Ingestion Script
+## Running the MySQL Data Ingestion Script
 
-The script ingests data from the MySQL `domainStateless` table into the TAXII server.
+The script ingests data from the MySQL `domainStateless` table into the TAXII server. For each domain, it generates a STIX pattern consisting of three objects: a `domain-name` SDO, an `indicator` SDO, and a `relationship` SRO linking them.
 
-1.  Ensure MySQL environment variables (see Setup) are set.
+The generated STIX objects have the following characteristics:
+-   **domain-name**: Contains only `id`, `type`, `spec_version`, and `value`. `created`, `modified`, and custom `x_custom_*` fields are omitted from this object.
+-   **indicator**:
+    -   Name: Static value "Malicious Domain".
+    -   Labels: Static list `["malicious-activity"]`.
+    -   Confidence: Derived from the source `score` field (multiplied by 100).
+    -   Pattern: `[domain-name:value = 'THE_DOMAIN_NAME']`.
+    -   Timestamps (`created`, `modified`, `valid_from`): Set to the time of script execution ("now").
+-   **relationship**:
+    -   Type: `based-on` (source: indicator, target: domain-name).
+    -   Timestamps (`created`, `modified`): Set to the time of script execution ("now").
+
+1.  Ensure MySQL environment variables (see Setup section) are set for user, password, host, database, and port.
 2.  Run the script:
     ```bash
     python scripts/ingest_domain_stateless.py
     ```
-    You can use the `--limit` argument to process a specific number of rows, e.g., `python scripts/ingest_domain_stateless.py --limit 100`.
+    You can use the `--limit` argument to process a specific number of domains, e.g., `python scripts/ingest_domain_stateless.py --limit 100`.
 
 ## API Endpoints Overview
 
-- **Interactive API Docs (Swagger UI):** Available at `/api/v1/docs` (assuming default `API_V1_STR` prefix).
-- **Authentication:** Uses Bearer tokens. Tokens are expected to be obtained externally and validated by the `bfore_auth` system.
-- **Key TAXII Endpoints (prefixed with `/api/v1/taxii2/`):**
-    -   Discovery: `/` (e.g., `/api/v1/taxii2/`)
+- **Interactive API Docs (Swagger UI):** Available at `/api/v1/docs`.
+- **Authentication:** Uses Bearer tokens validated by the `bfore_auth` system.
+- **Data Structure:** When querying objects, expect that data ingested by the MySQL script will include linked `domain-name`, `indicator`, and `relationship` objects.
+- **Key TAXII Endpoints (prefixed with `/api/v1/taxii2/`):** (List of endpoints remains same)
+    -   Discovery: `/`
     -   API Root Info: `/{api_root_path}/`
     -   Collections: `/{api_root_path}/collections/`
     -   Collection Info: `/{api_root_path}/collections/{collection_id}/`
     -   Objects: `/{api_root_path}/collections/{collection_id}/objects/`
     -   Object by ID: `/{api_root_path}/collections/{collection_id}/objects/{object_id}/`
     -   Manifest: `/{api_root_path}/collections/{collection_id}/manifest/`
-- **`lite-feed` Scope:** If a user's token grants the `lite-feed` scope (as determined by `bfore_auth`), their access to objects and manifests will be restricted to data that was added to the respective collection more than 14 days ago. Other users receive the most current data.
+- **`lite-feed` Scope:** Users with this scope will only see objects/manifest entries added to a collection more than 14 days ago.
 
 ## Testing
 
 Tests are written using PyTest.
-1.  Ensure test dependencies are installed (should be covered by `requirements.txt`).
-2.  Configure a test database if necessary (see `pytest.ini` for `SQLALCHEMY_DATABASE_URL` or use the default SQLite setup in `tests/conftest.py`).
-3.  Run tests from the project root directory:
+Run tests from the project root directory:
     ```bash
     pytest
     ```
