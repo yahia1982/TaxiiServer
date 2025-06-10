@@ -8,8 +8,8 @@ from app.api.api_v1_router import api_router as v1_api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await set_jwks_keys([str(url) for url in settings.JWKS_URLS])
     yield
+
 
 app = FastAPI(
     title="BforeAI TAXII Server",
@@ -19,7 +19,9 @@ app = FastAPI(
     openapi_url="/taxi/openapi.json",
 )
 
-app.include_router(v1_api_router)#, dependencies=[Depends(validate_token)])#, prefix=settings.API_V1_STR)
+app.include_router(
+    v1_api_router
+)  # , dependencies=[Depends(validate_token)])#, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

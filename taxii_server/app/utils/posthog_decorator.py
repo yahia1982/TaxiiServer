@@ -10,8 +10,10 @@ from fastapi import Request, HTTPException
 from posthog import Posthog
 
 posthog = Posthog(
-    project_api_key=os.getenv("POSTHOG_API_KEY", "phc_AKPo1E2Y1hBQDFNY4T4TN9i9ty1JVvrDAwPArqTmgKJ"),
-    host='https://eu.i.posthog.com'
+    project_api_key=os.getenv(
+        "POSTHOG_API_KEY", "phc_AKPo1E2Y1hBQDFNY4T4TN9i9ty1JVvrDAwPArqTmgKJ"
+    ),
+    host="https://eu.i.posthog.com",
 )
 
 
@@ -19,6 +21,7 @@ def track_request(endpoint_name: Optional[str] = None):
     """
     Factory to allow passing optional custom endpoint name.
     """
+
     def decorator(f: Callable):
         @wraps(f)
         async def wrapped(request: Request, *args, **kwargs):
@@ -65,11 +68,13 @@ def track_request(endpoint_name: Optional[str] = None):
                 posthog.capture(
                     distinct_id=distinct_id,
                     event="TAXII Event",
-                    properties=event_properties
+                    properties=event_properties,
                 )
             except Exception as e:
                 print(f"Failed to send event to PostHog: {e}")
 
             return result
+
         return wrapped
+
     return decorator
