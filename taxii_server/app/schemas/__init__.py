@@ -15,5 +15,5 @@ from .taxii_schemas import (
     ManifestRecord,
     Manifest,
     Status,
-    ObjectsEnvelope
+    ObjectsEnvelope,
 )

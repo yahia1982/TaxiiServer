@@ -3,15 +3,18 @@ from app.core.config import settings
 from app.api.api_v1_router import api_router as v1_api_router
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 app.include_router(v1_api_router, prefix=settings.API_V1_STR)
 
+
 @app.get("/")
 async def root():
-    return {"message": f"Welcome to {settings.PROJECT_NAME}. See {settings.API_V1_STR}/docs for API docs."}
+    return {
+        "message": f"Welcome to {settings.PROJECT_NAME}. See {settings.API_V1_STR}/docs for API docs."
+    }
+
 
 # Example for init_db, commented out by default
 # from app.core.database import SessionLocal
