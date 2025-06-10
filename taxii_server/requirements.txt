@@ -1,3 +1,5 @@
+git+ssh://git@bitbucket.org/SebaBfore/bfore-auth.git@v0.2.8#egg=bfore-auth
+posthog==4.6.2
 alembic==1.16.1
 annotated-types==0.7.0
 anyio==4.9.0
