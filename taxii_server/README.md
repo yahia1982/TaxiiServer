@@ -1,115 +1,121 @@
 # TAXII 2.1 Server (FastAPI)
 
 This project implements a TAXII 2.1 compliant server using FastAPI, SQLAlchemy, and PostgreSQL.
+It supports both HTTP Basic Authentication (users stored locally) and API Key based authentication (with placeholder validation).
 
 ## Features
 
-- TAXII 2.1 compliant (aims for core services: Discovery, API Root, Collections, Objects, Manifest)
-- Built with Python, FastAPI (ASGI), SQLAlchemy (ORM), PostgreSQL (database)
-- Authentication integrated with an external system via the `bfore_auth` library (stubs used in development).
-- Role-based access control concepts: uses `is_admin` and `scopes` from the user object provided by `bfore_auth`.
-- Special `lite-feed` scope: Users with this scope only receive data added to a collection more than 14 days ago.
-- Data ingestion script provided to migrate data from a MySQL `domainStateless` table. This script generates a STIX pattern including a `domain-name`, an `indicator`, and a `relationship` object for each source domain.
+- TAXII 2.1 compliant services: Discovery, API Root, Collections, Objects, Manifest.
+- Built with Python, FastAPI, SQLAlchemy, PostgreSQL.
+- **Dual Authentication:**
+    - HTTP Basic Authentication (username/password stored in the local database).
+    - API Key Authentication (via `X-API-Key` header; validation logic is a placeholder for customization).
+- **Role-Based Access Control (RBAC):** Users are assigned roles (e.g., `admin`, `full_access_user`, `lite_feed_user`) which determine permissions.
+- **`lite-feed` Role:** Users with the `lite_feed_user` role only receive data added to a collection more than 14 days ago.
+- **User Management Endpoints:** APIs for creating, listing, and managing users and their passwords.
+- **Data Ingestion Script:** For migrating data from a MySQL `domainStateless` table, generating STIX patterns (`domain-name`, `indicator`, `relationship`).
 
 ## Prerequisites
 
 - Python 3.8+
-- PostgreSQL server (running and accessible)
-- MySQL server (running and accessible, for the data ingestion script only)
-- Access to the `bfore_auth` Python library/module (ensure it's installed in your environment).
-- Pip (for installing Python packages)
-- Alembic (installed via requirements, for database migrations)
+- PostgreSQL server
+- MySQL server (for the data ingestion script)
+- Pip, Alembic
 
 ## Setup Instructions
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd taxii_server  # Assuming the project root is taxii_server
-    ```
+1.  **Clone & Setup Virtual Environment:** (Standard git clone, python -m venv venv, source venv/bin/activate)
 
-2.  **Create and activate a Python virtual environment:**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
-
-3.  **Install dependencies:**
+2.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Configure Environment Variables:**
-    Create a `.env` file in the project root (`taxii_server/`) or set environment variables directly.
-    Example `.env` content:
+3.  **Configure Environment Variables (`.env` file):**
     ```env
-    # PostgreSQL connection URL
     DATABASE_URL=postgresql://your_pg_user:your_pg_password@your_pg_host:5432/taxii_db
-
-    # For Data Ingestion Script (MySQL connection)
+    # MySQL (for ingestion script)
     MYSQL_USER=your_mysql_user
     MYSQL_PASSWORD=your_mysql_password
     MYSQL_HOST=your_mysql_host
     MYSQL_DATABASE=your_mysql_db_name
     MYSQL_PORT=3306
     ```
-    **Note:** The application uses `pydantic-settings` to load these from the `.env` file.
 
-5.  **Run Database Migrations:**
-    Ensure your `alembic.ini` correctly points to your `DATABASE_URL`.
+4.  **Run Database Migrations:**
     ```bash
     alembic upgrade head
     ```
 
+5.  **Initial User & Role Setup (Important!):**
+    -   The application now uses local users and roles. You'll need to create them.
+    -   **Admin User:** It's recommended to create an initial 'admin' role and an admin user.
+        - You can do this via a Python script using the CRUD functions, or directly in the database if comfortable.
+        - Example (conceptual script, adapt to run in your environment):
+          ```python
+          # from app.core.database import SessionLocal
+          # from app.crud.crud_role import role_crud
+          # from app.crud.crud_user import user_crud
+          # from app.schemas.user_schemas import RoleCreate, UserCreate
+          # db = SessionLocal()
+          # admin_role = role_crud['get_by_name'](db, name='admin') or role_crud['create'](db, RoleCreate(name='admin', description='Administrator'))
+          # user_crud['create'](db, UserCreate(username='admin', password='yoursecurepassword', role_name='admin'))
+          # # Create other roles like 'lite_feed_user', 'full_access_user' as needed:
+          # role_crud['create'](db, RoleCreate(name='lite_feed_user', description='Restricted feed access'))
+          # role_crud['create'](db, RoleCreate(name='full_access_user', description='Full data access'))
+          # db.close()
+          ```
+    -   The user management endpoints (see below) can be used once an admin user exists.
+
 ## Running the Server
 
-For development, run the Uvicorn server:
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Running the MySQL Data Ingestion Script
+## Authentication
 
-The script ingests data from the MySQL `domainStateless` table into the TAXII server. For each domain, it generates a STIX pattern consisting of three objects: a `domain-name` SDO, an `indicator` SDO, and a `relationship` SRO linking them.
+The server supports two authentication methods:
+1.  **HTTP Basic Authentication:**
+    -   Provide username and password via the HTTP Basic Auth header.
+    -   Users and their hashed passwords are stored in the local database.
+2.  **API Key Authentication:**
+    -   Provide an API key in the `X-API-Key` request header.
+    -   **Important:** The API key validation logic in `app/auth/apikey.py` is currently a placeholder. You **must** replace it with your actual validation mechanism to check keys against your external system.
+    -   The placeholder includes test keys: `TEST_API_KEY_ADMIN`, `TEST_API_KEY_LITE`, `TEST_API_KEY_FULL` which assign corresponding roles.
 
-The generated STIX objects have the following characteristics:
--   **domain-name**: Contains only `id`, `type`, `spec_version`, and `value`. `created`, `modified`, and custom `x_custom_*` fields are omitted from this object.
--   **indicator**:
-    -   Name: Static value "Malicious Domain".
-    -   Labels: Static list `["malicious-activity"]`.
-    -   Confidence: Derived from the source `score` field (multiplied by 100).
-    -   Pattern: `[domain-name:value = 'THE_DOMAIN_NAME']`.
-    -   Timestamps (`created`, `modified`, `valid_from`): Set to the time of script execution ("now").
--   **relationship**:
-    -   Type: `based-on` (source: indicator, target: domain-name).
-    -   Timestamps (`created`, `modified`): Set to the time of script execution ("now").
+## User Roles & Permissions
 
-1.  Ensure MySQL environment variables (see Setup section) are set for user, password, host, database, and port.
-2.  Run the script:
-    ```bash
-    python scripts/ingest_domain_stateless.py
-    ```
-    You can use the `--limit` argument to process a specific number of domains, e.g., `python scripts/ingest_domain_stateless.py --limit 100`.
+-   Users are assigned roles (e.g., `admin`, `full_access_user`, `lite_feed_user`).
+-   **Admin (`admin` role):** Can access user management endpoints and typically has full access to all data.
+-   **Lite Feed (`lite_feed_user` role):** Access to objects/manifests is restricted to data added to a collection more than 14 days ago.
+-   Other roles can be defined and used for custom access control in the permission checking functions (`app/api/v1/permissions.py`).
 
-## API Endpoints Overview
+## User Management Endpoints
 
-- **Interactive API Docs (Swagger UI):** Available at `/api/v1/docs`.
-- **Authentication:** Uses Bearer tokens validated by the `bfore_auth` system.
-- **Data Structure:** When querying objects, expect that data ingested by the MySQL script will include linked `domain-name`, `indicator`, and `relationship` objects.
-- **Key TAXII Endpoints (prefixed with `/api/v1/taxii2/`):** (List of endpoints remains same)
+Available under `/api/v1/users/`:
+-   `POST /`: Create a new user (admin only).
+-   `GET /`: List users (admin only).
+-   `GET /{user_id}/`: Get user details (admin or self).
+-   `PUT /{user_id}/`: Update user details (username, role, active status) (admin only).
+-   `PUT /{user_id}/password/`: Update user's password (user themselves, or admin - admin part needs schema refinement).
+-   `DELETE /{user_id}/`: Delete a user (admin only).
+
+## MySQL Data Ingestion Script
+
+(Content about MySQL ingestion script - generating STIX patterns - remains largely the same as per previous README update, ensure consistency)
+The script `scripts/ingest_domain_stateless.py` ingests data from MySQL. For each domain, it generates a STIX pattern: `domain-name`, `indicator`, and `relationship`.
+Details on generated object structures (static fields, 'now' timestamps, etc.) are in the script's comments or previous README versions.
+Run with: `python scripts/ingest_domain_stateless.py [--limit N]`
+
+## API Endpoints Overview (TAXII)
+
+- Interactive API Docs (Swagger UI): `/api/v1/docs`.
+- Key TAXII Endpoints (prefixed with `/api/v1/taxii2/`): (List of endpoints remains same)
     -   Discovery: `/`
     -   API Root Info: `/{api_root_path}/`
-    -   Collections: `/{api_root_path}/collections/`
-    -   Collection Info: `/{api_root_path}/collections/{collection_id}/`
-    -   Objects: `/{api_root_path}/collections/{collection_id}/objects/`
-    -   Object by ID: `/{api_root_path}/collections/{collection_id}/objects/{object_id}/`
-    -   Manifest: `/{api_root_path}/collections/{collection_id}/manifest/`
-- **`lite-feed` Scope:** Users with this scope will only see objects/manifest entries added to a collection more than 14 days ago.
+    -   ... (and so on)
 
 ## Testing
 
-Tests are written using PyTest.
-Run tests from the project root directory:
-    ```bash
-    pytest
-    ```
+`pytest` from the project root.

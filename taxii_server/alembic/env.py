@@ -27,8 +27,7 @@ if config.config_file_name is not None:
 
 # Ensure our models are imported and Base.metadata is set for autogenerate
 from app.core.database import Base
-from app.models import *  # This will import what's in app/models/__init__.py
-
+from app.models import * # This will import what's in app/models/__init__.py
 target_metadata = Base.metadata
 
 
@@ -70,7 +69,9 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection, target_metadata=target_metadata
+        )
 
         with context.begin_transaction():
             context.run_migrations()

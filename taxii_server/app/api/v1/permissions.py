@@ -1,41 +1,21 @@
 from fastapi import HTTPException, status
+from typing import Dict, Any # For principal dict
+
 from app.models.taxii_models import Collection as CollectionModel
-from bfore_auth import types as bfore_types  # Use bfore_types.User
+from app.auth.dependencies import ROLE_ADMIN, ROLE_LITE_FEED, ROLE_FULL_ACCESS # Assuming these are defined
 
-from app.schemas.taxii_schemas import UserScope
+def check_read_permission(collection: CollectionModel, principal: Dict[str, Any]):
+    if collection.is_public_readable: return True
+    if not principal: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required to read this collection.")
+    user_role = principal.get("role")
+    if user_role == ROLE_ADMIN: return True
+    if user_role == ROLE_FULL_ACCESS: return True
+    if user_role == ROLE_LITE_FEED: return True
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Role '{user_role}' lacks read permission for this collection.")
 
-
-def check_read_permission(collection: CollectionModel, user: bfore_types.User):
-    if collection.is_public_readable:
-        return True
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
-        )
-    # Use user.is_admin and user.scopes from bfore_types.User
-    if user.is_admin:
-        return True
-    # Example scope check, adapt as needed
-    if any(s in user.scopes for s in [scope.value for scope in UserScope]):
-        return True
-
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="User lacks read permission for this collection.",
-    )
-
-
-def check_write_permission(collection: CollectionModel, user: bfore_types.User):
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required."
-        )
-    if user.is_admin:
-        return True
-    # Example scope check for write
-    if any(s in user.scopes for s in [UserScope.SYS_ADMIN.value]):
-        return True
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="User lacks write permission for this collection.",
-    )
+def check_write_permission(collection: CollectionModel, principal: Dict[str, Any]):
+    if not principal: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required to write to this collection.")
+    user_role = principal.get("role")
+    if user_role == ROLE_ADMIN: return True
+    if user_role == "publisher" or user_role == ROLE_FULL_ACCESS : return True
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Role '{user_role}' lacks write permission for this collection.")

@@ -1,35 +1,17 @@
-from contextlib import asynccontextmanager
-
-from bfore_auth import set_jwks_keys, validate_token
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from app.core.config import settings
 from app.api.api_v1_router import api_router as v1_api_router
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    yield
-
-
 app = FastAPI(
-    title="BforeAI TAXII Server",
-    lifespan=lifespan,
-    docs_url="/taxii/docs",
-    redoc_url="/taxii/redoc",
-    openapi_url="/taxi/openapi.json",
+    title=settings.PROJECT_NAME,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
-app.include_router(
-    v1_api_router
-)  # , dependencies=[Depends(validate_token)])#, prefix=settings.API_V1_STR)
-
+app.include_router(v1_api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 async def root():
-    return {
-        "message": f"Welcome to {settings.PROJECT_NAME}. See {settings.API_V1_STR}/docs for API docs."
-    }
-
+    return {"message": f"Welcome to {settings.PROJECT_NAME}. See {settings.API_V1_STR}/docs for API docs."}
 
 # Example for init_db, commented out by default
 # from app.core.database import SessionLocal
